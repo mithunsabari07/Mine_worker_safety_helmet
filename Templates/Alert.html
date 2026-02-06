@@ -1,0 +1,775 @@
+{% extends "base.html" %}
+
+{% block title %}Alert Management{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-exclamation-triangle"></i> Alert Management
+        </h2>
+        <div class="btn-group">
+            <button class="btn btn-outline-primary" onclick="refreshAlerts()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            {% if session.role == 'manager' %}
+            <button class="btn btn-success" onclick="acknowledgeAll()">
+                <i class="fas fa-check-double"></i> Acknowledge All
+            </button>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Alert Statistics -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6>Total Alerts</h6>
+                    <h2 id="totalAlerts">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h6>Pending</h6>
+                    <h2 id="pendingAlerts">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h6>High Risk</h6>
+                    <h2 id="highRiskAlerts">0</h2>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6>Resolved</h6>
+                    <h2 id="resolvedAlerts">0</h2>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Options -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Alert Type</label>
+                    <select class="form-select" id="filterType" onchange="filterAlerts()">
+                        <option value="all">All Types</option>
+                        <option value="gas">Gas Alert</option>
+                        <option value="temperature">Temperature</option>
+                        <option value="fall">Fall Detection</option>
+                        <option value="helmet">Helmet Status</option>
+                        <option value="sos">SOS Emergency</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Status</label>
+                    <select class="form-select" id="filterStatus" onchange="filterAlerts()">
+                        <option value="all">All Status</option>
+                        <option value="pending">Pending</option>
+                        <option value="acknowledged">Acknowledged</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Date Range</label>
+                    <select class="form-select" id="filterDate" onchange="filterAlerts()">
+                        <option value="today">Today</option>
+                        <option value="week">Last 7 Days</option>
+                        <option value="month">Last 30 Days</option>
+                        <option value="all">All Time</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Worker</label>
+                    <select class="form-select" id="filterWorker" onchange="filterAlerts()">
+                        <option value="all">All Workers</option>
+                        <!-- Will be populated by JS -->
+                    </select>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts Table -->
+    <div class="card">
+        <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="fas fa-bell"></i> Active Alerts
+            </h5>
+            <span class="badge bg-light text-danger" id="activeAlertCount">0 Active</span>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="alertsTable">
+                    <thead>
+                        <tr>
+                            {% if session.role == 'manager' %}
+                            <th>Worker</th>
+                            {% endif %}
+                            <th>Time</th>
+                            <th>Type</th>
+                            <th>Risk Score</th>
+                            <th>Message</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="alertsBody">
+                        <!-- Will be populated by JavaScript -->
+                        <tr id="loadingRow">
+                            <td colspan="{% if session.role == 'manager' %}7{% else %}6{% endif %}" class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2">Loading alerts...</p>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- No Alerts Message -->
+            <div id="noAlerts" class="text-center py-5 d-none">
+                <div class="mb-3" style="font-size: 3em; color: #28a745;">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h4>All Clear!</h4>
+                <p class="text-muted">No alerts found for the selected filters.</p>
+            </div>
+            
+            <!-- Pagination -->
+            <nav aria-label="Alert pagination" class="mt-3">
+                <ul class="pagination justify-content-center" id="pagination">
+                    <!-- Will be generated by JS -->
+                </ul>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Alert History Chart -->
+    <div class="row mt-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line"></i> Alert Trend (Last 7 Days)
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="alertChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie"></i> Alert Distribution
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="alertPieChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Alert Detail Modal -->
+<div class="modal fade" id="alertDetailModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Alert Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="alertDetailContent">
+                <!-- Will be populated by JS -->
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-success" id="acknowledgeBtn" onclick="acknowledgeAlert()">
+                    <i class="fas fa-check"></i> Acknowledge Alert
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Global variables
+    let allAlerts = [];
+    let currentPage = 1;
+    const alertsPerPage = 10;
+    let alertChart = null;
+    let pieChart = null;
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        loadAlerts();
+        loadWorkersForFilter();
+        
+        // Auto-refresh every 30 seconds
+        setInterval(loadAlerts, 30000);
+    });
+
+    // Load alerts from API
+    function loadAlerts() {
+        fetch('/api/alerts')
+            .then(response => response.json())
+            .then(data => {
+                allAlerts = data;
+                updateStatistics();
+                displayAlerts();
+                updateCharts();
+            })
+            .catch(error => {
+                console.error('Error loading alerts:', error);
+                document.getElementById('alertsBody').innerHTML = `
+                    <tr>
+                        <td colspan="{% if session.role == 'manager' %}7{% else %}6{% endif %}" class="text-center py-5 text-danger">
+                            <i class="fas fa-exclamation-circle fa-2x mb-3"></i>
+                            <p>Failed to load alerts. Please try again.</p>
+                        </td>
+                    </tr>
+                `;
+            });
+    }
+
+    // Load workers for filter dropdown
+    function loadWorkersForFilter() {
+        fetch('/api/manager/workers')
+            .then(response => response.json())
+            .then(workers => {
+                const select = document.getElementById('filterWorker');
+                workers.forEach(worker => {
+                    const option = document.createElement('option');
+                    option.value = worker.worker_id;
+                    option.textContent = `${worker.name} (${worker.worker_id})`;
+                    select.appendChild(option);
+                });
+            });
+    }
+
+    // Update statistics
+    function updateStatistics() {
+        const total = allAlerts.length;
+        const pending = allAlerts.filter(a => !a.acknowledged).length;
+        const highRisk = allAlerts.filter(a => a.risk_score >= 60).length;
+        const resolved = allAlerts.filter(a => a.acknowledged).length;
+
+        document.getElementById('totalAlerts').textContent = total;
+        document.getElementById('pendingAlerts').textContent = pending;
+        document.getElementById('highRiskAlerts').textContent = highRisk;
+        document.getElementById('resolvedAlerts').textContent = resolved;
+        document.getElementById('activeAlertCount').textContent = `${pending} Active`;
+    }
+
+    // Filter and display alerts
+    function filterAlerts() {
+        displayAlerts();
+    }
+
+    // Display alerts with pagination
+    function displayAlerts() {
+        const typeFilter = document.getElementById('filterType').value;
+        const statusFilter = document.getElementById('filterStatus').value;
+        const dateFilter = document.getElementById('filterDate').value;
+        const workerFilter = document.getElementById('filterWorker').value;
+
+        // Apply filters
+        let filteredAlerts = allAlerts.filter(alert => {
+            // Type filter
+            if (typeFilter !== 'all' && !alert.alert_type.toLowerCase().includes(typeFilter)) {
+                return false;
+            }
+            
+            // Status filter
+            if (statusFilter === 'pending' && alert.acknowledged) return false;
+            if (statusFilter === 'acknowledged' && !alert.acknowledged) return false;
+            
+            // Date filter
+            const alertDate = new Date(alert.timestamp);
+            const now = new Date();
+            if (dateFilter === 'today') {
+                const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                if (alertDate < today) return false;
+            } else if (dateFilter === 'week') {
+                const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+                if (alertDate < weekAgo) return false;
+            } else if (dateFilter === 'month') {
+                const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+                if (alertDate < monthAgo) return false;
+            }
+            
+            // Worker filter
+            if (workerFilter !== 'all' && alert.worker_id !== workerFilter) {
+                return false;
+            }
+            
+            return true;
+        });
+
+        // Sort by timestamp (newest first)
+        filteredAlerts.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // Calculate pagination
+        const totalPages = Math.ceil(filteredAlerts.length / alertsPerPage);
+        const startIndex = (currentPage - 1) * alertsPerPage;
+        const endIndex = startIndex + alertsPerPage;
+        const pageAlerts = filteredAlerts.slice(startIndex, endIndex);
+
+        // Generate table rows
+        let html = '';
+        if (pageAlerts.length === 0) {
+            document.getElementById('noAlerts').classList.remove('d-none');
+            document.getElementById('alertsTable').classList.add('d-none');
+        } else {
+            document.getElementById('noAlerts').classList.add('d-none');
+            document.getElementById('alertsTable').classList.remove('d-none');
+            
+            pageAlerts.forEach(alert => {
+                const time = new Date(alert.timestamp);
+                const timeStr = time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const dateStr = time.toLocaleDateString();
+                
+                // Determine alert type badge
+                let typeBadgeClass = 'bg-secondary';
+                let typeIcon = 'fa-exclamation-circle';
+                
+                if (alert.alert_type.includes('gas')) {
+                    typeBadgeClass = 'bg-danger';
+                    typeIcon = 'fa-smog';
+                } else if (alert.alert_type.includes('temperature')) {
+                    typeBadgeClass = 'bg-warning';
+                    typeIcon = 'fa-temperature-high';
+                } else if (alert.alert_type.includes('fall')) {
+                    typeBadgeClass = 'bg-dark';
+                    typeIcon = 'fa-running';
+                } else if (alert.alert_type.includes('helmet')) {
+                    typeBadgeClass = 'bg-info';
+                    typeIcon = 'fa-helmet-safety';
+                } else if (alert.alert_type.includes('sos')) {
+                    typeBadgeClass = 'bg-danger';
+                    typeIcon = 'fa-sos';
+                }
+                
+                // Determine risk badge
+                let riskBadgeClass = 'bg-success';
+                if (alert.risk_score > 60) riskBadgeClass = 'bg-danger';
+                else if (alert.risk_score > 30) riskBadgeClass = 'bg-warning';
+                
+                html += `
+                <tr class="{% if not alert.acknowledged %}alert-row{% endif %}" onclick="showAlertDetail(${alert.id})" style="cursor: pointer;">
+                    {% if session.role == 'manager' %}
+                    <td>
+                        <strong>${alert.worker_name || 'Unknown'}</strong><br>
+                        <small class="text-muted">${alert.worker_id}</small>
+                    </td>
+                    {% endif %}
+                    <td>
+                        <strong>${timeStr}</strong><br>
+                        <small class="text-muted">${dateStr}</small><br>
+                        <small class="text-muted">${alert.time_ago}</small>
+                    </td>
+                    <td>
+                        <span class="badge ${typeBadgeClass}">
+                            <i class="fas ${typeIcon}"></i> ${alert.alert_type}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${riskBadgeClass}">
+                            ${alert.risk_score}
+                        </span>
+                    </td>
+                    <td>${alert.message}</td>
+                    <td>
+                        ${alert.acknowledged ? 
+                            `<span class="badge bg-success">
+                                <i class="fas fa-check"></i> Acknowledged
+                            </span>` : 
+                            `<span class="badge bg-warning">
+                                <i class="fas fa-clock"></i> Pending
+                            </span>`
+                        }
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); showAlertDetail(${alert.id})">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        {% if session.role == 'manager' and not alert.acknowledged %}
+                        <button class="btn btn-sm btn-success" onclick="event.stopPropagation(); acknowledgeSingle(${alert.id})">
+                            <i class="fas fa-check"></i>
+                        </button>
+                        {% endif %}
+                    </td>
+                </tr>
+                `;
+            });
+        }
+
+        document.getElementById('alertsBody').innerHTML = html;
+        generatePagination(totalPages);
+    }
+
+    // Generate pagination
+    function generatePagination(totalPages) {
+        const pagination = document.getElementById('pagination');
+        pagination.innerHTML = '';
+        
+        // Previous button
+        const prevLi = document.createElement('li');
+        prevLi.className = `page-item ${currentPage === 1 ? 'disabled' : ''}`;
+        prevLi.innerHTML = `
+            <a class="page-link" href="#" onclick="changePage(${currentPage - 1})">
+                <i class="fas fa-chevron-left"></i>
+            </a>
+        `;
+        pagination.appendChild(prevLi);
+        
+        // Page numbers
+        for (let i = 1; i <= totalPages; i++) {
+            const li = document.createElement('li');
+            li.className = `page-item ${i === currentPage ? 'active' : ''}`;
+            li.innerHTML = `
+                <a class="page-link" href="#" onclick="changePage(${i})">${i}</a>
+            `;
+            pagination.appendChild(li);
+        }
+        
+        // Next button
+        const nextLi = document.createElement('li');
+        nextLi.className = `page-item ${currentPage === totalPages ? 'disabled' : ''}`;
+        nextLi.innerHTML = `
+            <a class="page-link" href="#" onclick="changePage(${currentPage + 1})">
+                <i class="fas fa-chevron-right"></i>
+            </a>
+        `;
+        pagination.appendChild(nextLi);
+    }
+
+    // Change page
+    function changePage(page) {
+        currentPage = page;
+        displayAlerts();
+    }
+
+    // Show alert details
+    function showAlertDetail(alertId) {
+        const alert = allAlerts.find(a => a.id === alertId);
+        if (!alert) return;
+        
+        const modal = new bootstrap.Modal(document.getElementById('alertDetailModal'));
+        const time = new Date(alert.timestamp);
+        
+        let content = `
+            <div class="alert ${alert.acknowledged ? 'alert-success' : 'alert-danger'}">
+                <h5><i class="fas fa-exclamation-triangle"></i> ${alert.alert_type.toUpperCase()} ALERT</h5>
+            </div>
+            
+            <div class="row">
+                <div class="col-md-6">
+                    <h6>Worker Information</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Worker Name:</strong></td>
+                            <td>${alert.worker_name || 'Unknown'}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Worker ID:</strong></td>
+                            <td>${alert.worker_id}</td>
+                        </tr>
+                        <tr>
+                            <td><strong>Alert Time:</strong></td>
+                            <td>${time.toLocaleString()}</td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <h6>Alert Details</h6>
+                    <table class="table table-sm">
+                        <tr>
+                            <td><strong>Risk Score:</strong></td>
+                            <td>
+                                <span class="badge ${alert.risk_score > 60 ? 'bg-danger' : alert.risk_score > 30 ? 'bg-warning' : 'bg-success'}">
+                                    ${alert.risk_score}
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Status:</strong></td>
+                            <td>
+                                ${alert.acknowledged ? 
+                                    '<span class="badge bg-success">Acknowledged</span>' : 
+                                    '<span class="badge bg-warning">Pending</span>'
+                                }
+                            </td>
+                        </tr>
+                        <tr>
+                            <td><strong>Duration:</strong></td>
+                            <td>${alert.time_ago}</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="mt-3">
+                <h6>Alert Message</h6>
+                <div class="alert alert-light border">
+                    ${alert.message}
+                </div>
+            </div>
+            
+            {% if session.role == 'manager' %}
+            <div class="mt-3">
+                <h6>Action Taken</h6>
+                ${alert.acknowledged ? 
+                    `<p class="text-success">
+                        <i class="fas fa-check-circle"></i> 
+                        Acknowledged by ${alert.acknowledged_by} 
+                        at ${new Date(alert.acknowledged_at).toLocaleString()}
+                    </p>` : 
+                    '<p class="text-muted">No action taken yet.</p>'
+                }
+            </div>
+            {% endif %}
+        `;
+        
+        document.getElementById('alertDetailContent').innerHTML = content;
+        
+        // Show/hide acknowledge button
+        const ackBtn = document.getElementById('acknowledgeBtn');
+        if (alert.acknowledged) {
+            ackBtn.style.display = 'none';
+        } else {
+            ackBtn.style.display = 'block';
+            ackBtn.onclick = function() { acknowledgeAlert(alertId); };
+        }
+        
+        modal.show();
+    }
+
+    // Acknowledge single alert
+    function acknowledgeSingle(alertId) {
+        if (confirm('Mark this alert as acknowledged?')) {
+            acknowledgeAlert(alertId);
+        }
+    }
+
+    // Acknowledge alert
+    function acknowledgeAlert(alertId) {
+        fetch(`/api/alerts/${alertId}/acknowledge`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                loadAlerts();
+                const modal = bootstrap.Modal.getInstance(document.getElementById('alertDetailModal'));
+                modal.hide();
+                showToast('Alert acknowledged successfully!', 'success');
+            }
+        })
+        .catch(error => {
+            showToast('Error acknowledging alert', 'danger');
+        });
+    }
+
+    // Acknowledge all pending alerts
+    function acknowledgeAll() {
+        if (!confirm('Acknowledge all pending alerts?')) return;
+        
+        const pendingAlerts = allAlerts.filter(a => !a.acknowledged);
+        let completed = 0;
+        
+        pendingAlerts.forEach(alert => {
+            fetch(`/api/alerts/${alert.id}/acknowledge`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(() => {
+                completed++;
+                if (completed === pendingAlerts.length) {
+                    loadAlerts();
+                    showToast(`Acknowledged ${completed} alerts`, 'success');
+                }
+            });
+        });
+    }
+
+    // Update charts
+    function updateCharts() {
+        // Prepare data for line chart (last 7 days)
+        const days = [];
+        const counts = [];
+        const now = new Date();
+        
+        for (let i = 6; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(date.getDate() - i);
+            const dateStr = date.toLocaleDateString([], {month: 'short', day: 'numeric'});
+            days.push(dateStr);
+            
+            const dayStart = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+            
+            const count = allAlerts.filter(alert => {
+                const alertDate = new Date(alert.timestamp);
+                return alertDate >= dayStart && alertDate < dayEnd;
+            }).length;
+            
+            counts.push(count);
+        }
+        
+        // Update line chart
+        const lineCtx = document.getElementById('alertChart').getContext('2d');
+        if (alertChart) alertChart.destroy();
+        
+        alertChart = new Chart(lineCtx, {
+            type: 'line',
+            data: {
+                labels: days,
+                datasets: [{
+                    label: 'Alerts per Day',
+                    data: counts,
+                    borderColor: '#e74c3c',
+                    backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        display: true
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            stepSize: 1
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Prepare data for pie chart
+        const types = {};
+        allAlerts.forEach(alert => {
+            const type = alert.alert_type.split(',')[0] || 'other';
+            types[type] = (types[type] || 0) + 1;
+        });
+        
+        const pieLabels = Object.keys(types);
+        const pieData = Object.values(types);
+        const pieColors = ['#e74c3c', '#f39c12', '#3498db', '#2ecc71', '#9b59b6'];
+        
+        // Update pie chart
+        const pieCtx = document.getElementById('alertPieChart').getContext('2d');
+        if (pieChart) pieChart.destroy();
+        
+        pieChart = new Chart(pieCtx, {
+            type: 'pie',
+            data: {
+                labels: pieLabels,
+                datasets: [{
+                    data: pieData,
+                    backgroundColor: pieColors
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+    }
+
+    // Refresh alerts
+    function refreshAlerts() {
+        loadAlerts();
+        showToast('Alerts refreshed', 'info');
+    }
+
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        // Create toast container if it doesn't exist
+        let toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toastContainer';
+            toastContainer.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+            `;
+            document.body.appendChild(toastContainer);
+        }
+        
+        // Create toast
+        const toastId = 'toast-' + Date.now();
+        const toast = document.createElement('div');
+        toast.id = toastId;
+        toast.className = `alert alert-${type} alert-dismissible fade show`;
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" onclick="document.getElementById('${toastId}').remove()"></button>
+        `;
+        toast.style.cssText = `
+            margin-bottom: 10px;
+            min-width: 250px;
+        `;
+        
+        toastContainer.appendChild(toast);
+        
+        // Auto remove after 3 seconds
+        setTimeout(() => {
+            if (document.getElementById(toastId)) {
+                document.getElementById(toastId).remove();
+            }
+        }, 3000);
+    }
+
+    // Add CSS for alert rows
+    const style = document.createElement('style');
+    style.textContent = `
+        .alert-row {
+            animation: pulse 2s infinite;
+        }
+        .alert-row:hover {
+            background-color: rgba(231, 76, 60, 0.1) !important;
+        }
+        @keyframes pulse {
+            0% { box-shadow: inset 0 0 0 0 rgba(231, 76, 60, 0.1); }
+            50% { box-shadow: inset 0 0 0 10px rgba(231, 76, 60, 0); }
+            100% { box-shadow: inset 0 0 0 0 rgba(231, 76, 60, 0.1); }
+        }
+    `;
+    document.head.appendChild(style);
+</script>
+{% endblock %}
