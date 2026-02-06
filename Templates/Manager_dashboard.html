@@ -1,0 +1,422 @@
+{% extends "base.html" %}
+
+{% block title %}Manager Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-tachometer-alt"></i> Manager Dashboard
+    </h2>
+    <div>
+        <span class="badge bg-primary fs-6">
+            <i class="fas fa-users"></i> {{ workers|length }} Workers
+        </span>
+        <span class="badge bg-danger ms-2 fs-6">
+            <i class="fas fa-exclamation-triangle"></i> {{ alerts|length }} Active Alerts
+        </span>
+    </div>
+</div>
+
+<!-- Quick Stats -->
+<div class="row mb-4">
+    <div class="col-md-3 mb-3">
+        <div class="stat-card">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6>Active Workers</h6>
+                    <h2>{{ workers|selectattr('is_active')|list|length }}</h2>
+                </div>
+                <div class="fs-1">
+                    <i class="fas fa-user-check"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6>High Risk</h6>
+                    <h2>{{ workers|selectattr('risk_level', 'equalto', 'danger')|list|length }}</h2>
+                </div>
+                <div class="fs-1">
+                    <i class="fas fa-exclamation-circle"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6>Today's Hours</h6>
+                    <h2>{{ "%.1f"|format(workers|sum(attribute='today_hours')) }}</h2>
+                </div>
+                <div class="fs-1">
+                    <i class="fas fa-clock"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 mb-3">
+        <div class="stat-card" style="background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h6>Safe Workers</h6>
+                    <h2>{{ workers|selectattr('risk_level', 'equalto', 'safe')|list|length }}</h2>
+                </div>
+                <div class="fs-1">
+                    <i class="fas fa-shield-alt"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Workers List -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-users"></i> Active Workers Monitor
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Worker</th>
+                                <th>Department</th>
+                                <th>Helmet</th>
+                                <th>Status</th>
+                                <th>Risk</th>
+                                <th>Hours</th>
+                                <th>Last Update</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for worker in workers %}
+                            <tr class="{% if not worker.is_active %}table-light{% elif worker.risk_level == 'danger' %}table-danger{% elif worker.risk_level == 'warning' %}table-warning{% endif %}">
+                                <td>
+                                    <strong>{{ worker.name }}</strong><br>
+                                    <small class="text-muted">{{ worker.worker_id }}</small>
+                                </td>
+                                <td>{{ worker.department }}</td>
+                                <td>
+                                    <span class="badge bg-info">{{ worker.helmet_id }}</span>
+                                </td>
+                                <td>
+                                    {% if worker.is_active %}
+                                    <span class="badge bg-success">
+                                        <i class="fas fa-circle"></i> Active
+                                    </span>
+                                    {% else %}
+                                    <span class="badge bg-secondary">
+                                        <i class="fas fa-circle"></i> Offline
+                                    </span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if worker.risk_level == 'safe' or worker.risk_level == 'inactive' %}bg-success
+                                        {% elif worker.risk_level == 'warning' %}bg-warning
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ worker.risk_score }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <strong>{{ worker.today_hours|default(0) }}</strong> hrs
+                                </td>
+                                <td>
+                                    {% if worker.last_update %}
+                                        <small>{{ worker.last_update.strftime('%H:%M:%S') }}</small>
+                                    {% else %}
+                                        <small>No data</small>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <button class="btn btn-sm btn-outline-primary" onclick="viewWorkerDetails('{{ worker.worker_id }}')">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    {% if worker.risk_level == 'danger' %}
+                                    <button class="btn btn-sm btn-danger" onclick="sendAlert('{{ worker.worker_id }}')">
+                                        <i class="fas fa-bell"></i>
+                                    </button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Active Alerts -->
+    <div class="col-lg-4">
+        <div class="card">
+            <div class="card-header bg-danger text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> Active Alerts
+                </h5>
+            </div>
+            <div class="card-body" style="max-height: 500px; overflow-y: auto;">
+                {% if alerts %}
+                    {% for alert in alerts %}
+                    <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="alert-heading">
+                                    <i class="fas fa-exclamation-circle"></i> {{ alert.worker.name }}
+                                </h6>
+                                <p class="mb-1">{{ alert.message }}</p>
+                                <small class="text-muted">
+                                    {{ alert.timestamp.strftime('%H:%M:%S') }} • 
+                                    Risk: <strong>{{ alert.risk_score }}</strong>
+                                </small>
+                            </div>
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" 
+                                    onclick="acknowledgeAlert({{ alert.id }})"></button>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                <div class="text-center py-4">
+                    <div class="mb-3" style="font-size: 3em; color: #28a745;">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h4>All Clear!</h4>
+                    <p class="text-muted">No active alerts at the moment.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        
+        <!-- Quick Actions -->
+        <div class="card mt-4">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-bolt"></i> Quick Actions
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="generateReport()">
+                        <i class="fas fa-file-pdf"></i> Generate Daily Report
+                    </button>
+                    <button class="btn btn-warning" onclick="sendAllAlert()">
+                        <i class="fas fa-bullhorn"></i> Broadcast Alert
+                    </button>
+                    <button class="btn btn-info" onclick="viewAllReports()">
+                        <i class="fas fa-chart-bar"></i> View Analytics
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Charts Section -->
+<div class="row mt-4">
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-pie"></i> Risk Distribution
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="riskChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-6">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line"></i> Daily Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                <canvas id="activityChart" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Department Overview -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-building"></i> Department Overview
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    {% set departments = workers|map(attribute='department')|unique|list %}
+                    {% for dept in departments if dept %}
+                    <div class="col-md-3 mb-3">
+                        <div class="card">
+                            <div class="card-body">
+                                <h6>{{ dept }}</h6>
+                                {% set dept_workers = workers|selectattr('department', 'equalto', dept)|list %}
+                                <h2>{{ dept_workers|length }}</h2>
+                                <small>Workers</small>
+                                
+                                <div class="mt-3">
+                                    <small>
+                                        <span class="text-success">●</span> Safe: {{ dept_workers|selectattr('risk_level', 'equalto', 'safe')|list|length }}<br>
+                                        <span class="text-warning">●</span> Warning: {{ dept_workers|selectattr('risk_level', 'equalto', 'warning')|list|length }}<br>
+                                        <span class="text-danger">●</span> Danger: {{ dept_workers|selectattr('risk_level', 'equalto', 'danger')|list|length }}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize charts
+    document.addEventListener('DOMContentLoaded', function() {
+        // Risk Distribution Chart
+        const riskCtx = document.getElementById('riskChart').getContext('2d');
+        const safeCount = {{ workers|selectattr('risk_level', 'equalto', 'safe')|list|length }};
+        const warningCount = {{ workers|selectattr('risk_level', 'equalto', 'warning')|list|length }};
+        const dangerCount = {{ workers|selectattr('risk_level', 'equalto', 'danger')|list|length }};
+        
+        new Chart(riskCtx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Safe', 'Warning', 'Danger'],
+                datasets: [{
+                    data: [safeCount, warningCount, dangerCount],
+                    backgroundColor: ['#28a745', '#ffc107', '#dc3545'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    }
+                }
+            }
+        });
+        
+        // Activity Chart
+        const activityCtx = document.getElementById('activityChart').getContext('2d');
+        new Chart(activityCtx, {
+            type: 'line',
+            data: {
+                labels: ['6AM', '8AM', '10AM', '12PM', '2PM', '4PM', '6PM'],
+                datasets: [{
+                    label: 'Active Workers',
+                    data: [5, 12, 15, 18, 16, 14, 8],
+                    borderColor: '#007bff',
+                    backgroundColor: 'rgba(0, 123, 255, 0.1)',
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 20
+                    }
+                }
+            }
+        });
+    });
+    
+    function viewWorkerDetails(workerId) {
+        window.location.href = `/worker/${workerId}/details`;
+    }
+    
+    function acknowledgeAlert(alertId) {
+        fetch(`/api/alerts/${alertId}/acknowledge`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if(data.status === 'success') {
+                location.reload();
+            }
+        });
+    }
+    
+    function sendAlert(workerId) {
+        fetch(`/api/manager/alert/${workerId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                message: 'Manager Alert: Please check your safety status immediately!'
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            alert('Alert sent to worker!');
+        });
+    }
+    
+    function generateReport() {
+        window.open('/api/reports/daily/pdf', '_blank');
+    }
+    
+    function sendAllAlert() {
+        const message = prompt('Enter broadcast message:');
+        if(message) {
+            fetch('/api/manager/broadcast', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ message: message })
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('Broadcast sent to all workers!');
+            });
+        }
+    }
+    
+    function viewAllReports() {
+        window.location.href = '/manager/reports';
+    }
+    
+    // Auto-refresh dashboard every 30 seconds
+    setInterval(() => {
+        fetch('/api/manager/workers')
+            .then(response => response.json())
+            .then(data => {
+                console.log('Dashboard refreshed');
+            });
+    }, 30000);
+</script>
+{% endblock %}
