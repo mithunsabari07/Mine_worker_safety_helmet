@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+
+{% block title %}Worker Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="fas fa-tachometer-alt"></i> Worker Dashboard
+    </h2>
+    <div>
+        <span class="badge bg-primary fs-6">
+            <i class="fas fa-id-card"></i> {{ worker.worker_id }}
+        </span>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Real-time Status -->
+    <div class="col-lg-8">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-heartbeat"></i> Real-time Safety Status
+                    <span class="real-time-indicator online float-end"></span>
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-md-3 mb-3">
+                        <div class="card {% if latest_log and latest_log.risk_score <= 30 %}risk-safe{% elif latest_log and latest_log.risk_score <= 60 %}risk-warning{% else %}risk-danger{% endif %}">
+                            <div class="card-body">
+                                <h6>Risk Level</h6>
+                                <h2 class="mt-2">
+                                    {% if latest_log %}
+                                        {% if latest_log.risk_score <= 30 %}
+                                            SAFE
+                                        {% elif latest_log.risk_score <= 60 %}
+                                            WARNING
+                                        {% else %}
+                                            DANGER
+                                        {% endif %}
+                                    {% else %}
+                                        OFFLINE
+                                    {% endif %}
+                                </h2>
+                                <small>Score: {{ latest_log.risk_score if latest_log else 0 }}</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <div class="card {% if latest_log and latest_log.gas <= 2700 %}bg-success{% else %}bg-danger{% endif %} text-white">
+                            <div class="card-body">
+                                <h6>Gas Level</h6>
+                                <h1 class="mt-2">{{ latest_log.gas if latest_log else 0 }}</h1>
+                                <small>PPM</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <div class="card {% if latest_log and latest_log.temperature <= 40 %}bg-success{% else %}bg-danger{% endif %} text-white">
+                            <div class="card-body">
+                                <h6>Temperature</h6>
+                                <h1 class="mt-2">{{ "%.1f"|format(latest_log.temperature) if latest_log else 0 }}°C</h1>
+                                <small>Ambient</small>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-3 mb-3">
+                        <div class="card {% if latest_log and latest_log.helmet_worn %}bg-success{% else %}bg-danger{% endif %} text-white">
+                            <div class="card-body">
+                                <h6>Helmet</h6>
+                                <h2 class="mt-2">
+                                    {% if latest_log and latest_log.helmet_worn %}
+                                        <i class="fas fa-check-circle"></i> ON
+                                    {% else %}
+                                        <i class="fas fa-times-circle"></i> OFF
+                                    {% endif %}
+                                </h2>
+                                <small>Status</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Battery & Fall Status -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="card">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6>Battery Status</h6>
+                                        <div class="progress mt-2" style="height: 20px;">
+                                            <div class="progress-bar {% if latest_log and latest_log.battery and latest_log.battery > 3.5 %}bg-success{% elif latest_log and latest_log.battery and latest_log.battery > 3.2 %}bg-warning{% else %}bg-danger{% endif %}" 
+                                                 style="width: {% if latest_log and latest_log.battery %}{{ (latest_log.battery / 4.2 * 100)|round|int }}{% else %}0{% endif %}%">
+                                                {{ "%.2f"|format(latest_log.battery) if latest_log and latest_log.battery else 0 }}V
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="fs-1 ms-3">
+                                        {% if latest_log and latest_log.battery and latest_log.battery > 3.5 %}
+                                            <i class="fas fa-battery-full text-success"></i>
+                                        {% elif latest_log and latest_log.battery and latest_log.battery > 3.2 %}
+                                            <i class="fas fa-battery-half text-warning"></i>
+                                        {% else %}
+                                            <i class="fas fa-battery-empty text-danger"></i>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="card {% if latest_log and latest_log.fall %}risk-danger{% endif %}">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6>Fall Detection</h6>
+                                        <h3 class="mt-2">
+                                            {% if latest_log and latest_log.fall %}
+                                                <span class="text-danger">FALL DETECTED!</span>
+                                            {% else %}
+                                                <span class="text-success">NORMAL</span>
+                                            {% endif %}
+                                        </h3>
+                                    </div>
+                                    <div class="fs-1 ms-3">
+                                        {% if latest_log and latest_log.fall %}
+                                            <i class="fas fa-exclamation-triangle text-danger"></i>
+                                        {% else %}
+                                            <i class="fas fa-walking text-success"></i>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Working Hours & Info -->
+    <div class="col-lg-4">
+        <!-- Worker Info -->
+        <div class="card mb-4">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-user"></i> Worker Information
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <div class="mb-3" style="font-size: 4em; color: var(--primary-color);">
+                        <i class="fas fa-hard-hat"></i>
+                    </div>
+                    <h4>{{ worker.name }}</h4>
+                    <p class="text-muted">{{ worker.department }}</p>
+                </div>
+                
+                <table class="table">
+                    <tr>
+                        <td><i class="fas fa-id-card"></i> Worker ID:</td>
+                        <td class="text-end"><strong>{{ worker.worker_id }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-helmet-safety"></i> Helmet ID:</td>
+                        <td class="text-end"><strong>{{ worker.helmet_id }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-clock"></i> Today's Hours:</td>
+                        <td class="text-end"><strong>{{ today_hours }} hrs</strong></td>
+                    </tr>
+                    <tr>
+                        <td><i class="fas fa-shield-alt"></i> Last Update:</td>
+                        <td class="text-end">
+                            {% if latest_log %}
+                                <small>{{ latest_log.timestamp.strftime('%H:%M:%S') }}</small>
+                            {% else %}
+                                <small>No data</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+        
+        <!-- Quick Stats -->
+        <div class="card">
+            <div class="card-header bg-secondary text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-chart-line"></i> Today's Summary
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="row text-center">
+                    <div class="col-6 mb-3">
+                        <div class="p-3 bg-light rounded">
+                            <h6>Work Hours</h6>
+                            <h3 class="mt-2">{{ today_hours }}</h3>
+                            <small>hours</small>
+                        </div>
+                    </div>
+                    <div class="col-6 mb-3">
+                        <div class="p-3 bg-light rounded">
+                            <h6>Risk Score</h6>
+                            <h3 class="mt-2">{{ latest_log.risk_score if latest_log else 0 }}</h3>
+                            <small>current</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded">
+                            <h6>Alerts</h6>
+                            <h3 class="mt-2">{{ recent_alerts|length }}</h3>
+                            <small>today</small>
+                        </div>
+                    </div>
+                    <div class="col-6">
+                        <div class="p-3 bg-light rounded">
+                            <h6>Helmet</h6>
+                            <h3 class="mt-2">
+                                {% if latest_log and latest_log.helmet_worn %}
+                                    <i class="fas fa-check text-success"></i>
+                                {% else %}
+                                    <i class="fas fa-times text-danger"></i>
+                                {% endif %}
+                            </h3>
+                            <small>status</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Alerts -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-exclamation-triangle"></i> Recent Alerts
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_alerts %}
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Type</th>
+                                <th>Risk Score</th>
+                                <th>Message</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for alert in recent_alerts %}
+                            <tr class="{% if not alert.acknowledged %}table-warning{% endif %}">
+                                <td>{{ alert.timestamp.strftime('%H:%M:%S') }}</td>
+                                <td>
+                                    <span class="badge 
+                                        {% if 'gas' in alert.alert_type %}bg-danger
+                                        {% elif 'temperature' in alert.alert_type %}bg-warning
+                                        {% elif 'fall' in alert.alert_type %}bg-danger
+                                        {% elif 'helmet' in alert.alert_type %}bg-info
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ alert.alert_type }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge 
+                                        {% if alert.risk_score <= 30 %}bg-success
+                                        {% elif alert.risk_score <= 60 %}bg-warning
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ alert.risk_score }}
+                                    </span>
+                                </td>
+                                <td>{{ alert.message }}</td>
+                                <td>
+                                    {% if alert.acknowledged %}
+                                        <span class="badge bg-success">Acknowledged</span>
+                                    {% else %}
+                                        <span class="badge bg-warning">Pending</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-5">
+                    <div class="mb-3" style="font-size: 3em; color: #ccc;">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h4>No Alerts Today</h4>
+                    <p class="text-muted">Your safety status is good!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Emergency SOS Button -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card alert-card">
+            <div class="card-body text-center py-4">
+                <h4 class="text-danger mb-3">
+                    <i class="fas fa-sos"></i> EMERGENCY SOS
+                </h4>
+                <p class="mb-4">Press this button only in case of emergency. It will immediately alert the manager.</p>
+                <button class="btn btn-danger btn-lg" onclick="sendSOS()">
+                    <i class="fas fa-bell"></i> SEND SOS ALERT
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Auto-refresh dashboard every 10 seconds
+    setInterval(function() {
+        fetch('/api/worker/status')
+            .then(response => response.json())
+            .then(data => {
+                // Update UI with new data
+                if(data.status !== 'offline') {
+                    updateDashboard(data);
+                }
+            });
+    }, 10000);
+    
+    function updateDashboard(data) {
+        // Update risk level
+        const riskLevelEl = document.querySelector('.risk-level');
+        if(riskLevelEl) {
+            riskLevelEl.textContent = data.risk_level.toUpperCase();
+            riskLevelEl.className = `badge fs-6 ${
+                data.risk_level === 'safe' ? 'bg-success' : 
+                data.risk_level === 'warning' ? 'bg-warning' : 'bg-danger'
+            }`;
+        }
+        
+        // Update gas value
+        const gasEl = document.querySelector('.gas-value');
+        if(gasEl) gasEl.textContent = data.gas;
+        
+        // Update temperature
+        const tempEl = document.querySelector('.temp-value');
+        if(tempEl) tempEl.textContent = data.temperature.toFixed(1) + '°C';
+        
+        // Update helmet status
+        const helmetEl = document.querySelector('.helmet-status');
+        if(helmetEl) {
+            helmetEl.innerHTML = data.helmet_worn ? 
+                '<i class="fas fa-check-circle"></i> ON' : 
+                '<i class="fas fa-times-circle"></i> OFF';
+        }
+    }
+    
+    function sendSOS() {
+        if(confirm('Are you sure you want to send an SOS alert? This will immediately notify the manager.')) {
+            fetch('/api/worker/sos', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                alert('SOS Alert Sent! Manager has been notified.');
+            })
+            .catch(error => {
+                alert('Error sending SOS alert. Please try again.');
+            });
+        }
+    }
+</script>
+{% endblock %}
