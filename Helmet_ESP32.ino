@@ -3,8 +3,8 @@
 #include <ArduinoJson.h>
 
 // ========= CONFIGURATION =========
-const char* ssid = "YOUR_WIFI_SSID";
-const char* password = "YOUR_WIFI_PASSWORD";
+const char* ssid = "Varun";
+const char* password = "VARUN0430";
 const char* serverUrl = "http://YOUR_SERVER_IP:5000/api/helmet/data";
 
 // Worker and Helmet IDs
