@@ -1,0 +1,896 @@
+{% extends "base.html" %}
+
+{% block title %}Reports & Analytics{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Page Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2>
+            <i class="fas fa-chart-bar"></i> Reports & Analytics
+        </h2>
+        <div class="btn-group">
+            <button class="btn btn-outline-primary" onclick="refreshReports()">
+                <i class="fas fa-sync-alt"></i> Refresh
+            </button>
+            <button class="btn btn-success" onclick="generatePDF()">
+                <i class="fas fa-file-pdf"></i> Export PDF
+            </button>
+            <button class="btn btn-info" onclick="exportCSV()">
+                <i class="fas fa-file-csv"></i> Export CSV
+            </button>
+        </div>
+    </div>
+
+    <!-- Date Range Selector -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <h5 class="card-title">
+                <i class="fas fa-calendar-alt"></i> Select Date Range
+            </h5>
+            <div class="row">
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">From Date</label>
+                    <input type="date" class="form-control" id="fromDate" value="{{ today }}">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">To Date</label>
+                    <input type="date" class="form-control" id="toDate" value="{{ today }}">
+                </div>
+                <div class="col-md-3 mb-3">
+                    <label class="form-label">Department</label>
+                    <select class="form-select" id="departmentFilter">
+                        <option value="all">All Departments</option>
+                        <option value="Construction">Construction</option>
+                        <option value="Mining">Mining</option>
+                        <option value="Manufacturing">Manufacturing</option>
+                        <option value="Warehouse">Warehouse</option>
+                    </select>
+                </div>
+                <div class="col-md-3 mb-3 d-flex align-items-end">
+                    <button class="btn btn-primary w-100" onclick="loadReportData()">
+                        <i class="fas fa-filter"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Key Performance Indicators -->
+    <div class="row mb-4">
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h6>Total Work Hours</h6>
+                    <h2 id="totalHours">0</h2>
+                    <small id="hoursChange" class="text-white-50">0% vs last period</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body text-center">
+                    <h6>Average Risk Score</h6>
+                    <h2 id="avgRisk">0</h2>
+                    <small id="riskChange" class="text-white-50">0% vs last period</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-danger text-white">
+                <div class="card-body text-center">
+                    <h6>Total Alerts</h6>
+                    <h2 id="totalAlerts">0</h2>
+                    <small id="alertsChange" class="text-white-50">0% vs last period</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3 col-6 mb-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h6>Safety Compliance</h6>
+                    <h2 id="compliance">0%</h2>
+                    <small id="complianceChange" class="text-white-50">0% vs last period</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts Section -->
+    <div class="row mb-4">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-line"></i> Daily Safety Metrics
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="dailyChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-4">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-chart-pie"></i> Risk Distribution
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="riskPieChart" height="300"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Department Comparison -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-building"></i> Department Comparison
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <canvas id="departmentChart" height="250"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Worker Performance Table -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="fas fa-users"></i> Worker Performance Report
+                    </h5>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="showDetails" onchange="toggleWorkerDetails()">
+                        <label class="form-check-label" for="showDetails">Show Details</label>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover" id="workersTable">
+                            <thead>
+                                <tr>
+                                    <th>Worker</th>
+                                    <th>Department</th>
+                                    <th>Work Hours</th>
+                                    <th>Avg Risk Score</th>
+                                    <th>Alerts</th>
+                                    <th>Helmet Usage</th>
+                                    <th>Safety Score</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody id="workersBody">
+                                <!-- Will be populated by JS -->
+                                <tr>
+                                    <td colspan="8" class="text-center py-5">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                        <p class="mt-2">Loading worker data...</p>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- Worker Detail Rows (hidden by default) -->
+                    <div id="workerDetails" class="mt-3 d-none">
+                        <h6>Detailed Breakdown</h6>
+                        <div id="detailsContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alert Analysis -->
+    <div class="row mt-4">
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-exclamation-triangle"></i> Top Alert Types
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="alertTypesList"></div>
+                </div>
+            </div>
+        </div>
+        <div class="col-lg-6">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">
+                        <i class="fas fa-clock"></i> Peak Alert Times
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div id="peakTimesList"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Generation Modal -->
+<div class="modal fade" id="reportModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Generate Report</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">Report Type</label>
+                    <select class="form-select" id="reportType">
+                        <option value="daily">Daily Summary</option>
+                        <option value="weekly">Weekly Analysis</option>
+                        <option value="monthly">Monthly Report</option>
+                        <option value="custom">Custom Period</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Include Charts</label>
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="includeCharts" checked>
+                        <label class="form-check-label" for="includeCharts">
+                            Include charts and graphs
+                        </label>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Format</label>
+                    <select class="form-select" id="reportFormat">
+                        <option value="pdf">PDF Document</option>
+                        <option value="excel">Excel Spreadsheet</option>
+                        <option value="html">HTML Report</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="generateReport()">
+                    <i class="fas fa-download"></i> Generate Report
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+<script>
+    // Global variables
+    let reportData = {};
+    let dailyChart = null;
+    let riskPieChart = null;
+    let departmentChart = null;
+
+    // Initialize when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Set default dates (today and 7 days ago)
+        const today = new Date().toISOString().split('T')[0];
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        const weekAgoStr = weekAgo.toISOString().split('T')[0];
+        
+        document.getElementById('fromDate').value = weekAgoStr;
+        document.getElementById('toDate').value = today;
+        
+        loadReportData();
+    });
+
+    // Load report data
+    function loadReportData() {
+        const fromDate = document.getElementById('fromDate').value;
+        const toDate = document.getElementById('toDate').value;
+        const department = document.getElementById('departmentFilter').value;
+        
+        // Show loading state
+        document.getElementById('workersBody').innerHTML = `
+            <tr>
+                <td colspan="8" class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-2">Loading report data...</p>
+                </td>
+            </tr>
+        `;
+        
+        // Fetch report data
+        fetch(`/api/reports/daily?from=${fromDate}&to=${toDate}&department=${department}`)
+            .then(response => response.json())
+            .then(data => {
+                reportData = data;
+                updateKPIs();
+                updateCharts();
+                updateWorkerTable();
+                updateAlertAnalysis();
+            })
+            .catch(error => {
+                console.error('Error loading report:', error);
+                showToast('Failed to load report data', 'danger');
+            });
+    }
+
+    // Update Key Performance Indicators
+    function updateKPIs() {
+        const kpis = reportData.kpis || {};
+        
+        document.getElementById('totalHours').textContent = kpis.total_hours || '0';
+        document.getElementById('avgRisk').textContent = kpis.avg_risk || '0';
+        document.getElementById('totalAlerts').textContent = kpis.total_alerts || '0';
+        document.getElementById('compliance').textContent = kpis.compliance || '0%';
+        
+        // Update change indicators
+        document.getElementById('hoursChange').textContent = formatChange(kpis.hours_change);
+        document.getElementById('riskChange').textContent = formatChange(kpis.risk_change);
+        document.getElementById('alertsChange').textContent = formatChange(kpis.alerts_change);
+        document.getElementById('complianceChange').textContent = formatChange(kpis.compliance_change);
+    }
+
+    // Format change percentage
+    function formatChange(change) {
+        if (!change) return '0% vs last period';
+        const sign = change >= 0 ? '+' : '';
+        return `${sign}${change}% vs last period`;
+    }
+
+    // Update charts
+    function updateCharts() {
+        updateDailyChart();
+        updateRiskPieChart();
+        updateDepartmentChart();
+    }
+
+    // Update daily chart
+    function updateDailyChart() {
+        const dailyData = reportData.daily_data || [];
+        const ctx = document.getElementById('dailyChart').getContext('2d');
+        
+        if (dailyChart) dailyChart.destroy();
+        
+        const labels = dailyData.map(d => d.date);
+        const riskScores = dailyData.map(d => d.avg_risk);
+        const alerts = dailyData.map(d => d.alerts);
+        const hours = dailyData.map(d => d.hours);
+        
+        dailyChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Average Risk Score',
+                        data: riskScores,
+                        borderColor: '#e74c3c',
+                        backgroundColor: 'rgba(231, 76, 60, 0.1)',
+                        yAxisID: 'y',
+                        tension: 0.4
+                    },
+                    {
+                        label: 'Alerts',
+                        data: alerts,
+                        borderColor: '#f39c12',
+                        backgroundColor: 'rgba(243, 156, 18, 0.1)',
+                        yAxisID: 'y1',
+                        type: 'bar'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                interaction: {
+                    mode: 'index',
+                    intersect: false,
+                },
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Risk Score'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Number of Alerts'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    },
+                }
+            }
+        });
+    }
+
+    // Update risk pie chart
+    function updateRiskPieChart() {
+        const riskDistribution = reportData.risk_distribution || {safe: 0, warning: 0, danger: 0};
+        const ctx = document.getElementById('riskPieChart').getContext('2d');
+        
+        if (riskPieChart) riskPieChart.destroy();
+        
+        riskPieChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: ['Safe (<30)', 'Warning (31-60)', 'Danger (>60)'],
+                datasets: [{
+                    data: [riskDistribution.safe, riskDistribution.warning, riskDistribution.danger],
+                    backgroundColor: ['#2ecc71', '#f39c12', '#e74c3c'],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const value = context.raw;
+                                const percentage = Math.round((value / total) * 100);
+                                return `${context.label}: ${value} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    // Update department chart
+    function updateDepartmentChart() {
+        const deptData = reportData.department_data || [];
+        const ctx = document.getElementById('departmentChart').getContext('2d');
+        
+        if (departmentChart) departmentChart.destroy();
+        
+        const labels = deptData.map(d => d.department);
+        const riskScores = deptData.map(d => d.avg_risk);
+        const hours = deptData.map(d => d.total_hours);
+        const alerts = deptData.map(d => d.alerts);
+        
+        departmentChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'Avg Risk Score',
+                        data: riskScores,
+                        backgroundColor: 'rgba(231, 76, 60, 0.7)',
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'Work Hours',
+                        data: hours,
+                        backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                        yAxisID: 'y1',
+                        type: 'line'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    y: {
+                        type: 'linear',
+                        display: true,
+                        position: 'left',
+                        title: {
+                            display: true,
+                            text: 'Risk Score'
+                        }
+                    },
+                    y1: {
+                        type: 'linear',
+                        display: true,
+                        position: 'right',
+                        title: {
+                            display: true,
+                            text: 'Work Hours'
+                        },
+                        grid: {
+                            drawOnChartArea: false,
+                        },
+                    }
+                }
+            }
+        });
+    }
+
+    // Update worker table
+    function updateWorkerTable() {
+        const workers = reportData.workers || [];
+        let html = '';
+        
+        if (workers.length === 0) {
+            html = `
+                <tr>
+                    <td colspan="8" class="text-center py-5">
+                        <div class="mb-3" style="font-size: 3em; color: #ccc;">
+                            <i class="fas fa-users-slash"></i>
+                        </div>
+                        <h5>No Worker Data Found</h5>
+                        <p class="text-muted">Try adjusting your date range or filters.</p>
+                    </td>
+                </tr>
+            `;
+        } else {
+            workers.forEach(worker => {
+                // Calculate safety score (0-100)
+                const safetyScore = calculateSafetyScore(worker);
+                
+                html += `
+                <tr onclick="showWorkerDetails('${worker.worker_id}')" style="cursor: pointer;">
+                    <td>
+                        <strong>${worker.name}</strong><br>
+                        <small class="text-muted">${worker.worker_id}</small>
+                    </td>
+                    <td>${worker.department}</td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar bg-primary" style="width: ${Math.min(worker.hours / 8 * 100, 100)}%">
+                                ${worker.hours}h
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="badge ${getRiskBadgeClass(worker.avg_risk)}">
+                            ${worker.avg_risk.toFixed(1)}
+                        </span>
+                    </td>
+                    <td>
+                        ${worker.alerts}
+                        ${worker.alerts > 0 ? `<span class="badge bg-danger ms-1">${worker.high_risk_alerts}</span>` : ''}
+                    </td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${worker.helmet_usage > 90 ? 'bg-success' : 'bg-warning'}" 
+                                 style="width: ${worker.helmet_usage}%">
+                                ${worker.helmet_usage}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${safetyScore > 80 ? 'bg-success' : safetyScore > 60 ? 'bg-warning' : 'bg-danger'}" 
+                                 style="width: ${safetyScore}%">
+                                ${safetyScore}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-primary" onclick="event.stopPropagation(); showWorkerDetails('${worker.worker_id}')">
+                            <i class="fas fa-chart-bar"></i>
+                        </button>
+                    </td>
+                </tr>
+                `;
+            });
+        }
+        
+        document.getElementById('workersBody').innerHTML = html;
+    }
+
+    // Calculate safety score
+    function calculateSafetyScore(worker) {
+        let score = 100;
+        
+        // Deduct for risk score
+        score -= worker.avg_risk * 0.5;
+        
+        // Deduct for alerts
+        score -= worker.alerts * 2;
+        score -= worker.high_risk_alerts * 5;
+        
+        // Add for helmet usage
+        score += (worker.helmet_usage - 80) * 0.5;
+        
+        // Clamp between 0 and 100
+        return Math.max(0, Math.min(100, Math.round(score)));
+    }
+
+    // Get risk badge class
+    function getRiskBadgeClass(score) {
+        if (score <= 30) return 'bg-success';
+        if (score <= 60) return 'bg-warning';
+        return 'bg-danger';
+    }
+
+    // Show worker details
+    function showWorkerDetails(workerId) {
+        const worker = reportData.workers.find(w => w.worker_id === workerId);
+        if (!worker) return;
+        
+        const details = reportData.worker_details?.[workerId] || {};
+        
+        let content = `
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">${worker.name} - Performance Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>Basic Info</h6>
+                            <table class="table table-sm">
+                                <tr><td>Worker ID:</td><td>${worker.worker_id}</td></tr>
+                                <tr><td>Department:</td><td>${worker.department}</td></tr>
+                                <tr><td>Helmet ID:</td><td>${worker.helmet_id}</td></tr>
+                                <tr><td>Work Sessions:</td><td>${worker.sessions}</td></tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Performance Metrics</h6>
+                            <table class="table table-sm">
+                                <tr><td>Total Hours:</td><td>${worker.hours} hours</td></tr>
+                                <tr><td>Avg Session:</td><td>${(worker.hours / worker.sessions).toFixed(1)} hours</td></tr>
+                                <tr><td>Helmet Usage:</td><td>${worker.helmet_usage}%</td></tr>
+                                <tr><td>Safety Score:</td><td>${calculateSafetyScore(worker)}%</td></tr>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Alert Breakdown</h6>
+                        <div class="row">
+                            <div class="col-md-3">
+                                <div class="card bg-danger text-white text-center">
+                                    <div class="card-body">
+                                        <h6>Total Alerts</h6>
+                                        <h3>${worker.alerts}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-warning text-white text-center">
+                                    <div class="card-body">
+                                        <h6>High Risk</h6>
+                                        <h3>${worker.high_risk_alerts}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-info text-white text-center">
+                                    <div class="card-body">
+                                        <h6>Gas Alerts</h6>
+                                        <h3>${details.gas_alerts || 0}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="card bg-secondary text-white text-center">
+                                    <div class="card-body">
+                                        <h6>Fall Alerts</h6>
+                                        <h3>${details.fall_alerts || 0}</h3>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Recommendations</h6>
+                        <div class="alert ${calculateSafetyScore(worker) > 80 ? 'alert-success' : calculateSafetyScore(worker) > 60 ? 'alert-warning' : 'alert-danger'}">
+                            ${generateRecommendations(worker)}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('detailsContent').innerHTML = content;
+        document.getElementById('workerDetails').classList.remove('d-none');
+    }
+
+    // Generate recommendations
+    function generateRecommendations(worker) {
+        const recommendations = [];
+        
+        if (worker.helmet_usage < 90) {
+            recommendations.push('Improve helmet usage compliance');
+        }
+        
+        if (worker.avg_risk > 60) {
+            recommendations.push('Address high-risk working conditions');
+        }
+        
+        if (worker.high_risk_alerts > 0) {
+            recommendations.push('Review and address high-risk alerts');
+        }
+        
+        if (worker.alerts > 5) {
+            recommendations.push('Conduct safety training');
+        }
+        
+        if (recommendations.length === 0) {
+            return 'Excellent safety performance! Keep up the good work.';
+        }
+        
+        return 'Recommendations: ' + recommendations.join(', ');
+    }
+
+    // Toggle worker details
+    function toggleWorkerDetails() {
+        const details = document.getElementById('workerDetails');
+        const checkbox = document.getElementById('showDetails');
+        
+        if (checkbox.checked) {
+            details.classList.remove('d-none');
+        } else {
+            details.classList.add('d-none');
+        }
+    }
+
+    // Update alert analysis
+    function updateAlertAnalysis() {
+        const alertTypes = reportData.alert_types || [];
+        const peakTimes = reportData.peak_times || [];
+        
+        // Update alert types
+        let alertTypesHtml = '';
+        alertTypes.forEach((type, index) => {
+            alertTypesHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>
+                        <span class="badge ${getAlertTypeBadge(type.type)} me-2">${type.type}</span>
+                        ${type.count} alerts
+                    </span>
+                    <span class="text-muted">${type.percentage}%</span>
+                </div>
+                <div class="progress mb-3" style="height: 10px;">
+                    <div class="progress-bar ${getAlertTypeBadge(type.type)}" style="width: ${type.percentage}%"></div>
+                </div>
+            `;
+        });
+        document.getElementById('alertTypesList').innerHTML = alertTypesHtml;
+        
+        // Update peak times
+        let peakTimesHtml = '';
+        peakTimes.forEach(time => {
+            peakTimesHtml += `
+                <div class="d-flex justify-content-between align-items-center mb-2">
+                    <span>
+                        <i class="fas fa-clock me-2"></i>
+                        ${time.hour}:00 - ${time.hour}:59
+                    </span>
+                    <span class="badge bg-danger">${time.count} alerts</span>
+                </div>
+            `;
+        });
+        document.getElementById('peakTimesList').innerHTML = peakTimesHtml;
+    }
+
+    // Get alert type badge class
+    function getAlertTypeBadge(type) {
+        switch(type.toLowerCase()) {
+            case 'gas': return 'bg-danger';
+            case 'temperature': return 'bg-warning';
+            case 'fall': return 'bg-dark';
+            case 'helmet': return 'bg-info';
+            case 'sos': return 'bg-danger';
+            default: return 'bg-secondary';
+        }
+    }
+
+    // Generate PDF report
+    function generatePDF() {
+        const modal = new bootstrap.Modal(document.getElementById('reportModal'));
+        modal.show();
+    }
+
+    // Generate report
+    function generateReport() {
+        const format = document.getElementById('reportFormat').value;
+        
+        // In a real implementation, this would call your backend to generate the report
+        // For now, we'll simulate it
+        showToast(`Report generation started. This might take a moment...`, 'info');
+        
+        setTimeout(() => {
+            showToast(`Report generated successfully!`, 'success');
+            const modal = bootstrap.Modal.getInstance(document.getElementById('reportModal'));
+            modal.hide();
+            
+            // In a real app, you would download the file
+            // For now, we'll show a message
+            alert('In a real implementation, this would download the report file.');
+        }, 2000);
+    }
+
+    // Export CSV
+    function exportCSV() {
+        const workers = reportData.workers || [];
+        if (workers.length === 0) {
+            showToast('No data to export', 'warning');
+            return;
+        }
+        
+        // Create CSV content
+        let csv = 'Worker ID,Name,Department,Work Hours,Avg Risk Score,Alerts,High Risk Alerts,Helmet Usage,Safety Score\n';
+        
+        workers.forEach(worker => {
+            csv += `"${worker.worker_id}","${worker.name}","${worker.department}",${worker.hours},${worker.avg_risk},${worker.alerts},${worker.high_risk_alerts},${worker.helmet_usage},${calculateSafetyScore(worker)}\n`;
+        });
+        
+        // Create download link
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `safety_report_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        
+        showToast('CSV exported successfully', 'success');
+    }
+
+    // Refresh reports
+    function refreshReports() {
+        loadReportData();
+        showToast('Reports refreshed', 'info');
+    }
+
+    // Show toast notification
+    function showToast(message, type = 'info') {
+        // Create toast if it doesn't exist
+        let toastContainer = document.getElementById('toastContainer');
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.id = 'toastContainer';
+            toastContainer.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                z-index: 9999;
+            `;
+            document.body.appendChild(toastContainer);
+        }
+        
+        const toastId = 'toast-' + Date.now();
+        const toast = document.createElement('div');
+        toast.id = toastId;
+        toast.className = `alert alert-${type} alert-dismissible fade show`;
+        toast.innerHTML = `
+            ${message}
+            <button type="button" class="btn-close" onclick="document.getElementById('${toastId}').remove()"></button>
+        `;
+        toast.style.cssText = 'margin-bottom: 10px; min-width: 250px;';
+        
+        toastContainer.appendChild(toast);
+        
+        setTimeout(() => {
+            if (document.getElementById(toastId)) {
+                document.getElementById(toastId).remove();
+            }
+        }, 3000);
+    }
+</script>
+{% endblock %}ll
